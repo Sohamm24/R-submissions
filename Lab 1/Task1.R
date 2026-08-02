@@ -1,0 +1,298 @@
+# task 1
+tryCatch({
+  # lets adjust directory first
+  getwd()
+  setwd("C:/SEM VII/R/Lab 1")
+  # file renamed to target for simplification purposes
+  # PRSA_Data_Aotizhongxin_20130301-20170228 to target
+  air_data <- read.csv("target.csv")
+  
+  cat("First 6 records per col:\n")
+  print(head(air_data))
+  
+  cat("\nStructure:\n")
+  print(str(air_data))
+  
+  cat("\nRows and Columns:\n")
+  print(dim(air_data))
+  
+  cat("\nAny missing values?\n")
+  print(any(is.na(air_data)))
+  
+  cat("\nTotal missing values:\n")
+  print(sum(is.na(air_data)))
+  
+},
+
+error = function(e){
+  cat("Error:", e$message)
+})
+
+# task 2
+{
+  
+  # NA Example 
+  cat("\nExample of NA values from PM2.5 column:\n")
+  ex1 <- air_data[is.na(air_data$PM2.5), c("year","month","day","hour","PM2.5")]
+  print(head(ex1))
+  
+  cat("\nChecking NA:\n")
+  print(is.na(head(ex1$PM2.5)))
+  
+  # NULL Example
+  ex2 <- NULL
+  
+  cat("\nExample of NULL:\n")
+  print(ex2)
+  print(is.null(ex2))
+  
+  # NaN Example
+  ex3 <- 0 / 0
+  
+  cat("\nExample of NaN:\n")
+  print(ex3)
+  print(is.nan(ex3))
+}
+
+# task 3
+{
+missing_summary <- function(data){
+  
+  variables <- c("PM2.5", "PM10", "SO2", "NO2", "TEMP", "WSPM", "wd")
+  
+  summary_df <- data.frame(
+    Variable = character(),
+    Total_Records = numeric(),
+    Missing_Values = numeric(),
+    Missing_Percentage = numeric(),
+    stringsAsFactors = FALSE
+  )
+  
+  for(var in variables){
+    
+    total <- nrow(data)
+    missing <- sum(is.na(data[[var]]))
+    percent <- round((missing / total) * 100, 2)
+    
+    summary_df <- rbind(summary_df,
+                        data.frame(
+                          Variable = var,
+                          Total_Records = total,
+                          Missing_Values = missing,
+                          Missing_Percentage = percent
+                        ))
+    
+    if(percent > 20){
+      warning(paste(var,
+                    "contains more than 20% missing values (",
+                    percent, "% )"))
+    }
+  }
+  
+  return(summary_df)
+}
+} # function block ends
+
+# caller block
+{
+missing_report <- missing_summary(air_data)
+
+cat("\nMissing Value Summary:\n")
+print(missing_report)
+}
+
+# task 4
+{
+  
+  air_data$pollution_ratio <- air_data$PM2.5 / air_data$PM10
+  
+  # Count invalid values
+  na_count <- sum(is.na(air_data$pollution_ratio))
+  nan_count <- sum(is.nan(air_data$pollution_ratio))
+  pos_inf <- sum(air_data$pollution_ratio == Inf, na.rm = TRUE)
+  neg_inf <- sum(air_data$pollution_ratio == -Inf, na.rm = TRUE)
+  
+  cat("NA Values:", na_count, "\n")
+  cat("NaN Values:", nan_count, "\n")
+  cat("Positive Infinity:", pos_inf, "\n")
+  cat("Negative Infinity:", neg_inf, "\n")
+  
+  air_data$pollution_ratio[
+    is.nan(air_data$pollution_ratio) |
+      is.infinite(air_data$pollution_ratio)
+  ] <- NA
+  
+  cat("\nAfter Replacement:\n")
+  cat("NA Values:", sum(is.na(air_data$pollution_ratio)), "\n")
+  cat("NaN Values:", sum(is.nan(air_data$pollution_ratio)), "\n")
+  cat("Infinite Values:", sum(is.infinite(air_data$pollution_ratio)), "\n")
+}
+
+# to save the before cleaning data for task 8
+
+{
+  before_missing <- sapply(
+    air_data[c("PM2.5", "PM10", "SO2", "NO2", "TEMP", "WSPM", "wd")],
+    function(x) sum(is.na(x))
+  )
+}
+
+# task 5
+
+{
+  numeric_variables <- c("PM2.5", "PM10", "SO2", "NO2", "TEMP", "WSPM")
+  
+  for(var in numeric_variables){
+    
+    if(var %in% names(air_data)){
+      
+      before <- sum(is.na(air_data[[var]]))
+      
+      median_value <- median(air_data[[var]], na.rm = TRUE)
+      
+      air_data[[var]][is.na(air_data[[var]])] <- median_value
+      
+      after <- sum(is.na(air_data[[var]]))
+      
+      cat("\n-----------------------------\n")
+      cat("Variable:", var, "\n")
+      cat("Missing Before:", before, "\n")
+      cat("Median Used:", median_value, "\n")
+      cat("Missing After:", after, "\n")
+      
+    } else {
+      
+      cat("\nColumn", var, "does not exist.\n")
+      
+    }
+  }
+}
+
+# task 6
+{
+  calculate_mode <- function(x){
+    
+    x <- x[!is.na(x)]
+    
+    unique_values <- unique(x)
+    
+    unique_values[which.max(tabulate(match(x, unique_values)))]
+  }
+  
+  before <- sum(is.na(air_data$wd))
+  
+  mode_value <- calculate_mode(air_data$wd)
+  
+  air_data$wd[is.na(air_data$wd)] <- mode_value
+  
+  after <- sum(is.na(air_data$wd))
+  
+  cat("Mode of wd:", mode_value, "\n")
+  cat("Missing Before:", before, "\n")
+  cat("Missing After:", after, "\n")
+}
+# task 7
+{
+  clean_variable <- function(data, variable_name){
+    
+    tryCatch({
+      
+      if(!(variable_name %in% names(data))){
+        stop("Variable does not exist.")
+      }
+      
+      if(!is.numeric(data[[variable_name]])){
+        stop("Variable is not numerical.")
+      }
+      
+      if(all(is.na(data[[variable_name]]))){
+        stop("Variable contains only missing values.")
+      }
+      
+      median_value <- median(data[[variable_name]], na.rm = TRUE)
+      
+      if(is.na(median_value)){
+        stop("Median could not be calculated.")
+      }
+      
+      data[[variable_name]][is.na(data[[variable_name]])] <- median_value
+      
+      cat(variable_name, "cleaned successfully.\n")
+      
+      return(data[[variable_name]])
+      
+    },
+    
+    error = function(e){
+      
+      cat("Error:", e$message, "\n")
+      return(NULL)
+      
+    })
+  }
+}
+# trial test case for above task (7)
+{
+# Valid variable
+clean_variable(air_data, "PM2.5")
+
+# Variable doesn't exist
+clean_variable(air_data, "XYZ")
+
+# Categorical variable
+clean_variable(air_data, "wd")
+}
+
+# task 8
+{
+  after_missing <- sapply(
+    air_data[c("PM2.5", "PM10", "SO2", "NO2", "TEMP", "WSPM", "wd")],
+    function(x) sum(is.na(x))
+  )
+  
+  comparison_table <- data.frame(
+    Variable = names(before_missing),
+    Missing_Before = before_missing,
+    Missing_After = after_missing,
+    Values_Replaced = before_missing - after_missing
+  )
+  
+  print(comparison_table)
+  
+  if(all(after_missing == 0)){
+    cat("Cleaning complete\n")
+  } else {
+    cat("Cleaning incomplete\n")
+  }
+}
+
+# task 9 
+{
+  missing_matrix <- rbind(before_missing, after_missing)
+  
+  barplot(
+    missing_matrix,
+    beside = TRUE,
+    col = c("red", "green"),
+    names.arg = names(before_missing),
+    main = "Missing Values Before and After Data Cleaning",
+    xlab = "Variables",
+    ylab = "Number of Missing Values",
+    legend.text = c("Before Cleaning", "After Cleaning")
+  )
+}
+
+
+# task 10
+{
+  write.csv(
+    air_data,
+    "cleanedTarget.csv",
+    row.names = FALSE
+  )
+  
+  cat("\nCleaned data saved as 'cleanedTarget.csv\n")
+}
+
+# display the analysis
+print("The Beijing Air Quality dataset mentioned in the assignment was imported into the studio environment. To identify missing and invalid values,  we have utilized the data processing ability of R. Different types of missing data (NA, NULL, and NaN) were demonstrated using appropriate R functions. We created a user defined function to generate a summary of missing values for selected variables. Numerical variables (PM2.5, PM10, SO2, NO2, TEMP, and WSPM) were cleaned by replacing missing values with their respective 'median' values, while missing values in the categorical variable (wd) were replaced with the mode. Error handling was implemented using tryCatch() to improve program reliability in case of failure. The comparison table and bar chart confirmed that all selected missing values were successfully handled, resulting in a clean dataset suitable for further processing.")
